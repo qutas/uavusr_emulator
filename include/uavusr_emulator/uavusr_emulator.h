@@ -5,6 +5,7 @@
 #include <std_msgs/Empty.h>
 #include <sensor_msgs/Image.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <image_transport/image_transport.h>
 
@@ -15,8 +16,11 @@ class UAVUSREmulator {
 		ros::NodeHandle nhp_;
 
 		ros::Publisher pub_pose_;
+		ros::Publisher pub_twist_;
 		ros::Publisher pub_grid_rand_;
 		ros::Publisher pub_grid_real_;
+		ros::Publisher pub_drop_red_;
+		ros::Publisher pub_drop_blue_;
 		image_transport::Publisher pub_image_;
 
 		ros::Subscriber sub_goal_;
@@ -34,6 +38,7 @@ class UAVUSREmulator {
 
 		geometry_msgs::PoseStamped pose_goal_;
 		geometry_msgs::PoseStamped pose_current_;
+		geometry_msgs::TwistStamped twist_current_;
 
 		image_transport::ImageTransport it_;
 		int img_seq_;
@@ -55,6 +60,7 @@ class UAVUSREmulator {
 		void callback_drop_red(const std_msgs::Empty::ConstPtr& msg_in);
 		void callback_drop_blue(const std_msgs::Empty::ConstPtr& msg_in);
 
+		geometry_msgs::Pose calcHitPoint(const geometry_msgs::Pose &p, const geometry_msgs::Twist &v);
 		void generateImageData(sensor_msgs::Image &img, int w, int h, int r, int g, int b);
 
 		double clamp(double x, double min, double max);
