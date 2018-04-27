@@ -13,6 +13,8 @@
 #include <math.h>
 #include <algorithm>
 
+#include <eigen3/Eigen/Dense>
+
 #define GRAV 9.80665
 
 UAVUSREmulator::UAVUSREmulator() :
@@ -150,26 +152,45 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 
 	pose_current_.header.stamp = e.current_real;
 	twist_current_.header.stamp = e.current_real;
-
-	//TODO: Should be a proper vector to ensure speed was clipped circularly
-	//TODO: Add a slight amount of noise
-	double vx = -clamp(pose_current_.pose.position.x - pose_goal_.pose.position.x, -param_vel_max_, param_vel_max_);
+	/*
+	double vx = -clamp(, -param_vel_max_, param_vel_max_);
 	double vy = -clamp(pose_current_.pose.position.y - pose_goal_.pose.position.y, -param_vel_max_, param_vel_max_);
 	double vz = -clamp(pose_current_.pose.position.z - pose_goal_.pose.position.z, -param_vel_max_, param_vel_max_);
+	*/
+	Eigen::Vector3d vel(pose_goal_.pose.position.x - pose_current_.pose.position.x,
+						pose_goal_.pose.position.y - pose_current_.pose.position.y,
+						pose_goal_.pose.position.z - pose_current_.pose.position.z);
 
-	pose_current_.pose.position.x += vx*dt;
-	pose_current_.pose.position.y += vy*dt;
-	pose_current_.pose.position.z += vz*dt;
+	double vscale  = vel.norm() / param_vel_max_;
+	if(vscale > 1.0) {
+		//Going to move too fast, rescale to slow down
+		vel = vel / vscale;
+	}
 
-	//TODO: Rotation
-	pose_current_.pose.orientation.x = 0.0;
-	pose_current_.pose.orientation.y = 0.0;
-	pose_current_.pose.orientation.z = 0.0;
-	pose_current_.pose.orientation.w = 1.0;
+	pose_current_.pose.position.x += vel.x()*dt;
+	pose_current_.pose.position.y += vel.y()*dt;
+	pose_current_.pose.position.z += vel.z()*dt;
 
-	twist_current_.twist.linear.x = vx;
-	twist_current_.twist.linear.y = vy;
-	twist_current_.twist.linear.z = vz;
+	double turn_rate = 0.8/param_rate_pose_;
+
+	Eigen::Matrix3d m_c = Eigen::Quaterniond(pose_goal_.pose.orientation.w,
+											 pose_goal_.pose.orientation.x,
+											 pose_goal_.pose.orientation.y,
+											 pose_goal_.pose.orientation.z).normalized().toRotationMatrix();
+	Eigen::Quaterniond q_c = Eigen::Quaterniond(extract_yaw_component(m_c));
+	Eigen::Quaterniond q_y = Eigen::Quaterniond(pose_current_.pose.orientation.w,
+												pose_current_.pose.orientation.x,
+												pose_current_.pose.orientation.y,
+												pose_current_.pose.orientation.z).normalized().slerp(turn_rate, q_c);
+
+	pose_current_.pose.orientation.x = q_y.x();
+	pose_current_.pose.orientation.y = q_y.y();
+	pose_current_.pose.orientation.z = q_y.z();
+	pose_current_.pose.orientation.w = q_y.w();
+
+	twist_current_.twist.linear.x = vel.x();
+	twist_current_.twist.linear.y = vel.y();
+	twist_current_.twist.linear.z = vel.z();
 
 	pub_pose_.publish(pose_current_);
 	pub_twist_.publish(twist_current_);
@@ -329,4 +350,36 @@ void UAVUSREmulator::generateImageData(sensor_msgs::Image &img, int w, int h, in
 
 double UAVUSREmulator::clamp(double x, double min, double max) {
     return (x < min) ? min : ( (x > max) ? max : x );
+}
+
+Eigen::Matrix3d UAVUSREmulator::extract_yaw_component(const Eigen::Matrix3d &r) {
+	Eigen::Vector3d sp_x = Eigen::Vector3d::UnitX();
+	Eigen::Vector3d sp_y = Eigen::Vector3d::UnitY();
+
+	//As long as y isn't straight up
+	if(r.col(1) != Eigen::Vector3d::UnitZ()) {
+		//If we have ||roll|| > 90Deg
+		Eigen::Vector3d y_c;
+		if(r(2,2) > 0.0) {
+			y_c = r.col(1);
+		} else {
+			y_c = -r.col(1);
+		}
+
+		sp_x = y_c.cross(Eigen::Vector3d::UnitZ());
+		sp_y = Eigen::Vector3d::UnitZ().cross(sp_x);
+	} else { //Use X-axis for the edge-case
+		Eigen::Vector3d x_c = r.col(0);
+
+		sp_y = Eigen::Vector3d::UnitZ().cross(x_c);
+		sp_x = sp_y.cross(Eigen::Vector3d::UnitZ());
+	}
+
+	//Get the pure yaw rotation
+	Eigen::Matrix3d ry;
+	ry << sp_x.normalized(),
+		  sp_y.normalized(),
+		  Eigen::Vector3d::UnitZ();
+
+	return ry;
 }

@@ -9,6 +9,7 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <image_transport/image_transport.h>
 
+#include <eigen3/Eigen/Dense>
 #include <string>
 
 class UAVUSREmulator {
@@ -64,4 +65,5 @@ class UAVUSREmulator {
 		void generateImageData(sensor_msgs::Image &img, int w, int h, int r, int g, int b);
 
 		double clamp(double x, double min, double max);
+		Eigen::Matrix3d extract_yaw_component(const Eigen::Matrix3d &r);
 };
