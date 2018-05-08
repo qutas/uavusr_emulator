@@ -9,9 +9,26 @@ cd ../
 catkin_make
 ```
 
-## Running
+## Updating
+```sh
+roscd uavusr_emulator
+git pull
+cd ~/catkin_ws
+catkin_make
 ```
+
+## Running
+
+#### Emulator
+
+```sh
 roslaunch uavusr_emulator emulator.launch
+```
+
+#### Waypoint Example
+
+```sh
+rosrun uavusr_emulator basic_waypoints
 ```
 
 ## Subscribed Topics
