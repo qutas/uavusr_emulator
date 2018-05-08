@@ -1,0 +1,101 @@
+#!/usr/bin/env python2
+import math
+
+import rospy
+import rospkg
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Vector3
+
+# We use a class as its easier to manage "global" variables
+class wp_tracker:
+	# --== Setup Functions ==--
+
+	def __init__(self):
+		self.wp_radius = 0.1
+		self.wp_counter = 0
+		self.wp_rate = 20.0
+
+		# Setup ROS
+		rospy.init_node('tracker', anonymous=True)
+		# Set up a subscriber to check where the UAV is currently
+		self.sub_pose = rospy.Subscriber('/emulator/uavusr/pose', PoseStamped, self.callback_pose)
+		# Set up a timer to periodically send out goal commands
+		self.timer_wp = rospy.Timer(rospy.Duration(1.0/self.wp_rate), self.callback_timer)
+		self.pub_goal = rospy.Publisher('/emulator/uavusr/goal', PoseStamped, queue_size=10)
+
+		# Initialize Waypoints
+		self.wp_counter = 0
+		self.wp_list = [Vector3(x=0,y=0,z=1.5),
+					   Vector3(x=1,y=1,z=1.5),
+					   Vector3(x=-1,y=1,z=1.5),
+					   Vector3(x=-1,y=-1,z=1.5),
+					   Vector3(x=1,y=-1,z=1.5),
+					   Vector3(x=1,y=1,z=1.5),
+					   Vector3(x=0,y=0,z=1.5)]
+
+		rospy.loginfo("Starting mission");
+		self.print_current_wp()
+
+	# --== Callbacks Functions ==--
+
+	# Tracks the UAVs position and handles waypoints tracking
+	def callback_pose(self, msg_in):
+		# If the list has not been completed
+		if self.wp_counter < len(self.wp_list):
+			# If the waypoint has been reached
+			if self.waypoint_reached(self.wp_list[self.wp_counter], msg_in.pose.position):
+				self.wp_counter += 1
+
+				# Need to check again to make sure we haven't just reached the end of the list
+				if self.wp_counter < len(self.wp_list):
+					self.print_current_wp()
+		# Else the mission is over
+		else:
+			rospy.loginfo("Mission complete!")
+			self.shutdown()
+
+	# Sends the current goal commands to the UAV
+	def callback_timer(self, time):
+		if self.wp_counter < len(self.wp_list):
+			# Prepare the output message
+			msg_out = PoseStamped()
+			msg_out.header.stamp = rospy.Time.now()
+			msg_out.header.frame_id = 'world'
+			# Set the goal to the current waypoint
+			msg_out.pose.position = self.wp_list[self.wp_counter]
+			msg_out.pose.orientation.w = 1.0 # Valid no-rotation (xyz = 0)
+
+			self.pub_goal.publish(msg_out)
+
+
+	# --== Helper Functions ==--
+
+	# Returns true if the current location (c) is within the radius of the current waypoint (w)
+	def waypoint_reached(self, w, c):
+		dx = w.x - c.x
+		dy = w.y - c.y
+		dz = w.z - c.z
+
+		dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+
+		return (dist < self.wp_radius)
+
+	# Prints the current waypoint to the screen
+	def print_current_wp(self):
+		wp = (self.wp_counter + 1,
+				self.wp_list[self.wp_counter].x,
+				self.wp_list[self.wp_counter].y,
+				self.wp_list[self.wp_counter].z)
+		rospy.loginfo("Moving to waypoint %i: [%0.2f,%0.2f,%0.2f]" % wp);
+
+	# Handles a graceful shutdown of the node
+	def shutdown(self):
+		self.timer_wp.shutdown()
+		self.sub_pose.unregister()
+
+		rospy.signal_shutdown('Quit')
+
+if __name__ == '__main__':
+	tracker = wp_tracker()
+	rospy.spin()
+
