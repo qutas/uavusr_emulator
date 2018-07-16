@@ -22,6 +22,7 @@
 	<node pkg="contrail" type="contrail_guidance_node" name="guidance" clear_params="true"
 	ns="$(arg uav_name)" output="screen">
 		<param name="update_rate" value="50.0" />
+		<param name="do_feedback" value="true" />
 
 		<!-- Remap topic names to match what the uavusr_emulator expects -->
 		<remap from="guidance/command/triplet" to="reference/triplet"/>
