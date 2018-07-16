@@ -3,22 +3,27 @@
 	<arg name="uav_name" default="emulated_uav"/>
 	<arg name="wp_name" default="home"/>
 
+	<!-- Load the waypoints from file, and send them as a ROS topic -->
 	<node pkg="contrail" type="load_waypoints" name="load_waypoints" clear_params="true"
 	ns="$(arg uav_name)" output="screen">
 		<param name="frame_id" value="map" />
 		<rosparam command="load" file="$(find uavusr_emulator)/paths/$(arg wp_name).yaml"/>
 	</node>
 
+	<!-- Convert the simple waypoint topic to a standard nav_msgs/Path topic -->
 	<node pkg="contrail" type="converter_waypoints_path" name="wp_converter" clear_params="true"
 	ns="$(arg uav_name)" output="screen">
+		<!-- Remap topic names to match what the uavusr_emulator expects -->
 		<remap from="wp_converter/waypoints" to="waypoints" />
 		<remap from="wp_converter/path" to="path" />
 	</node>
 
+	<!-- Run the actual path guidance node -->
 	<node pkg="contrail" type="contrail_guidance_node" name="guidance" clear_params="true"
 	ns="$(arg uav_name)" output="screen">
 		<param name="update_rate" value="50.0" />
 
+		<!-- Remap topic names to match what the uavusr_emulator expects -->
 		<remap from="guidance/command/triplet" to="reference/triplet"/>
 		<remap from="guidance/reference/contrail/path" to="path"/>
 		<remap from="guidance/state/odom" to="odom" />

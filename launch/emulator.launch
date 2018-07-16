@@ -4,13 +4,13 @@
 
 	<node pkg="uavusr_emulator" type="uavusr_emulator_node" name="emulator" clear_params="true"
 	ns="$(arg uav_name)" output="screen">
-		<!-- Parameters -->
+		<!-- Operational Parameters -->
 		<param name="frame_id" value="map" type="str"/>
 		<param name="model_id" value="uavusr" type="str"/>
-
 		<param name="update_rate_pose" value="50.0" type="double"/>
 		<param name="update_rate_image" value="1.0" type="double"/>
 
+		<!-- Position Control Parameters -->
 		<param name="pos_gain" value="1.0" type="double"/>
 		<param name="vel_max" value="1.0" type="double"/>
 	</node>
