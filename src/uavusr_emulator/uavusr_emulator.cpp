@@ -4,28 +4,38 @@
 
 #include <std_msgs/Empty.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/BatteryState.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
+#include <nav_msgs/Odometry.h>
+#include <mavros_msgs/State.h>
+#include <mavros_msgs/PositionTarget.h>
 #include <image_transport/image_transport.h>
 
 #include <string>
 #include <math.h>
 #include <algorithm>
+#include <cstdlib>
+#include <time.h>
 
 #include <eigen3/Eigen/Dense>
 
 #define GRAV 9.80665
 
 UAVUSREmulator::UAVUSREmulator() :
+	nh_(),
 	nhp_("~"),
 	param_frame_id_("map"),
-	param_model_id_("mantis_uav"),
+	param_model_id_("uav"),
 	param_rate_pose_(50.0),
 	param_rate_image_(1.0),
 	param_vel_max_(1.0),
-	it_(nhp_),
+	param_pos_p_(1.0),
+	it_(nh_),
 	img_seq_(0) {
+
+	srand(time(NULL));
 
 	//Parameters
 	nhp_.param("frame_id", param_frame_id_, param_frame_id_);
@@ -33,23 +43,26 @@ UAVUSREmulator::UAVUSREmulator() :
 	nhp_.param("update_rate_pose", param_rate_pose_, param_rate_pose_);
 	nhp_.param("update_rate_image", param_rate_image_, param_rate_image_);
 	nhp_.param("vel_max", param_vel_max_, param_vel_max_);
+	nhp_.param("pos_gain", param_pos_p_, param_pos_p_);
 
 	//Publishers
-	pub_pose_ = nhp_.advertise<geometry_msgs::PoseStamped>( param_model_id_ + "/pose", 100 );
-	pub_twist_ = nhp_.advertise<geometry_msgs::TwistStamped>( param_model_id_ + "/twist", 100 );
-	pub_drop_red_ = nhp_.advertise<geometry_msgs::PoseStamped>( "drop/red/pose", 100 );
-	pub_drop_blue_ = nhp_.advertise<geometry_msgs::PoseStamped>( "drop/blue/pose", 100 );
+	pub_pose_ = nh_.advertise<geometry_msgs::PoseStamped>( "pose", 100 );
+	pub_odom_ = nh_.advertise<nav_msgs::Odometry>( "odom", 100 );
+	pub_state_ = nh_.advertise<mavros_msgs::State>( "state", 100 );
+	pub_battery_ = nh_.advertise<sensor_msgs::BatteryState>( "battery", 100 );
+	pub_drop_red_ = nh_.advertise<geometry_msgs::PoseStamped>( "drop/red/pose", 100 );
+	pub_drop_blue_ = nh_.advertise<geometry_msgs::PoseStamped>( "drop/blue/pose", 100 );
 
-	pub_grid_rand_ = nhp_.advertise<nav_msgs::OccupancyGrid>( "grid/random", 1, true );
-	pub_grid_real_ = nhp_.advertise<nav_msgs::OccupancyGrid>( "grid/real", 1, true );
+	pub_grid_rand_ = nh_.advertise<nav_msgs::OccupancyGrid>( "/grid/random", 1, true );
+	pub_grid_real_ = nh_.advertise<nav_msgs::OccupancyGrid>( "/grid/real", 1, true );
 
-	pub_image_ = it_.advertise("image", 1);
+	pub_image_ = it_.advertise("camera/image", 1);
 
 	//Subscribers
-	sub_goal_ = nhp_.subscribe<geometry_msgs::PoseStamped>( param_model_id_ + "/goal", 10, &UAVUSREmulator::callback_goal, this );
+	sub_goal_ = nh_.subscribe<mavros_msgs::PositionTarget>( "reference/triplet", 10, &UAVUSREmulator::callback_goal, this );
 
-	sub_drop_red_ = nhp_.subscribe<std_msgs::Empty>( "drop/red", 10, &UAVUSREmulator::callback_drop_red, this );
-	sub_drop_blue_ = nhp_.subscribe<std_msgs::Empty>( "drop/blue", 10, &UAVUSREmulator::callback_drop_blue, this );
+	sub_drop_red_ = nh_.subscribe<std_msgs::Empty>( "drop/red", 10, &UAVUSREmulator::callback_drop_red, this );
+	sub_drop_blue_ = nh_.subscribe<std_msgs::Empty>( "drop/blue", 10, &UAVUSREmulator::callback_drop_blue, this );
 
 	//Pregenerate some of the data
 	//Images
@@ -114,31 +127,44 @@ UAVUSREmulator::UAVUSREmulator() :
 	pub_grid_real_.publish(grid_test_out);
 
 	//Pose
-	pose_current_.header.frame_id = param_frame_id_;
-	twist_current_.header.frame_id = param_frame_id_;
-	pose_goal_.header.frame_id = param_frame_id_;
+	odom_current_.header.frame_id = param_frame_id_;
+	pt_goal_.header.frame_id = param_frame_id_;
 
-	pose_current_.pose.position.x = 0.0;
-	pose_current_.pose.position.y = 0.0;
-	pose_current_.pose.position.z = 0.0;
-	pose_goal_.pose.position.x = 0.0;
-	pose_goal_.pose.position.y = 0.0;
-	pose_goal_.pose.position.z = 1.5;
-	pose_current_.pose.orientation.x = 0.0;
-	pose_current_.pose.orientation.y = 0.0;
-	pose_current_.pose.orientation.z = 0.0;
-	pose_current_.pose.orientation.w = 1.0;
-	pose_goal_.pose.orientation = pose_current_.pose.orientation;
+	odom_current_.pose.pose.position.x = 0.0;
+	odom_current_.pose.pose.position.y = 0.0;
+	odom_current_.pose.pose.position.z = 0.0;
+	odom_current_.pose.pose.orientation.x = 0.0;
+	odom_current_.pose.pose.orientation.y = 0.0;
+	odom_current_.pose.pose.orientation.z = 0.0;
+	odom_current_.pose.pose.orientation.w = 1.0;
+	odom_current_.twist.twist.linear.x = 0.0;
+	odom_current_.twist.twist.linear.y = 0.0;
+	odom_current_.twist.twist.linear.z = 0.0;
+	odom_current_.twist.twist.angular.x = 0.0;
+	odom_current_.twist.twist.angular.y = 0.0;
+	odom_current_.twist.twist.angular.z = 0.0;
 
-	twist_current_.twist.linear.x = 0.0;
-	twist_current_.twist.linear.y = 0.0;
-	twist_current_.twist.linear.z = 0.0;
-	twist_current_.twist.angular.x = 0.0;
-	twist_current_.twist.angular.y = 0.0;
-	twist_current_.twist.angular.z = 0.0;
+	pt_goal_.coordinate_frame = pt_goal_.FRAME_LOCAL_NED;
+	pt_goal_.type_mask |= pt_goal_.IGNORE_VX;
+	pt_goal_.type_mask |= pt_goal_.IGNORE_VY;
+	pt_goal_.type_mask |= pt_goal_.IGNORE_VZ;
+	pt_goal_.type_mask |= pt_goal_.IGNORE_AFX;
+	pt_goal_.type_mask |= pt_goal_.IGNORE_AFY;
+	pt_goal_.type_mask |= pt_goal_.IGNORE_AFZ;
+	pt_goal_.type_mask |= pt_goal_.FORCE;
+	pt_goal_.type_mask |= pt_goal_.IGNORE_YAW_RATE;
+	pt_goal_.position.x = 0.0;
+	pt_goal_.position.y = 0.0;
+	pt_goal_.position.z = 1.5;
+	pt_goal_.velocity.x = 0.0;
+	pt_goal_.velocity.y = 0.0;
+	pt_goal_.velocity.z = 0.0;
+	pt_goal_.yaw = 0.0;
+	pt_goal_.yaw_rate = 0.0;
 
 	//Start the control loop
 	timer_pose_ = nhp_.createTimer(ros::Duration(1.0/param_rate_pose_), &UAVUSREmulator::callback_pose, this );
+	timer_state_ = nhp_.createTimer(ros::Duration(1.0), &UAVUSREmulator::callback_state, this );
 	timer_image_ = nhp_.createTimer(ros::Duration(1.0/param_rate_image_), &UAVUSREmulator::callback_image, this );
 
 	ROS_INFO("UAVUSR Emulator started!");
@@ -150,16 +176,15 @@ UAVUSREmulator::~UAVUSREmulator() {
 void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 	double dt = 1.0/param_rate_pose_;
 
-	pose_current_.header.stamp = e.current_real;
-	twist_current_.header.stamp = e.current_real;
+	odom_current_.header.stamp = e.current_real;
 	/*
 	double vx = -clamp(, -param_vel_max_, param_vel_max_);
 	double vy = -clamp(pose_current_.pose.position.y - pose_goal_.pose.position.y, -param_vel_max_, param_vel_max_);
 	double vz = -clamp(pose_current_.pose.position.z - pose_goal_.pose.position.z, -param_vel_max_, param_vel_max_);
 	*/
-	Eigen::Vector3d vel(pose_goal_.pose.position.x - pose_current_.pose.position.x,
-						pose_goal_.pose.position.y - pose_current_.pose.position.y,
-						pose_goal_.pose.position.z - pose_current_.pose.position.z);
+	Eigen::Vector3d vel = param_pos_p_* Eigen::Vector3d(pt_goal_.position.x - odom_current_.pose.pose.position.x,
+														pt_goal_.position.y - odom_current_.pose.pose.position.y,
+														pt_goal_.position.z - odom_current_.pose.pose.position.z);
 
 	double vscale  = vel.norm() / param_vel_max_;
 	if(vscale > 1.0) {
@@ -167,33 +192,70 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 		vel = vel / vscale;
 	}
 
-	pose_current_.pose.position.x += vel.x()*dt;
-	pose_current_.pose.position.y += vel.y()*dt;
-	pose_current_.pose.position.z += vel.z()*dt;
+	odom_current_.pose.pose.position.x += vel.x()*dt;
+	odom_current_.pose.pose.position.y += vel.y()*dt;
+	odom_current_.pose.pose.position.z += vel.z()*dt;
 
 	double turn_rate = 0.8/param_rate_pose_;
 
-	Eigen::Matrix3d m_c = Eigen::Quaterniond(pose_goal_.pose.orientation.w,
-											 pose_goal_.pose.orientation.x,
-											 pose_goal_.pose.orientation.y,
-											 pose_goal_.pose.orientation.z).normalized().toRotationMatrix();
-	Eigen::Quaterniond q_c = Eigen::Quaterniond(extract_yaw_component(m_c));
-	Eigen::Quaterniond q_y = Eigen::Quaterniond(pose_current_.pose.orientation.w,
-												pose_current_.pose.orientation.x,
-												pose_current_.pose.orientation.y,
-												pose_current_.pose.orientation.z).normalized().slerp(turn_rate, q_c);
+	Eigen::Quaterniond q_c = Eigen::Quaterniond(Eigen::AngleAxisd(pt_goal_.yaw, Eigen::Vector3d::UnitZ()));
+	Eigen::Quaterniond q_y = Eigen::Quaterniond(odom_current_.pose.pose.orientation.w,
+												odom_current_.pose.pose.orientation.x,
+												odom_current_.pose.pose.orientation.y,
+												odom_current_.pose.pose.orientation.z).normalized().slerp(turn_rate, q_c);
 
-	pose_current_.pose.orientation.x = q_y.x();
-	pose_current_.pose.orientation.y = q_y.y();
-	pose_current_.pose.orientation.z = q_y.z();
-	pose_current_.pose.orientation.w = q_y.w();
+	odom_current_.pose.pose.orientation.x = q_y.x();
+	odom_current_.pose.pose.orientation.y = q_y.y();
+	odom_current_.pose.pose.orientation.z = q_y.z();
+	odom_current_.pose.pose.orientation.w = q_y.w();
 
-	twist_current_.twist.linear.x = vel.x();
-	twist_current_.twist.linear.y = vel.y();
-	twist_current_.twist.linear.z = vel.z();
+	Eigen::Vector3d bv = q_y.toRotationMatrix().inverse()*vel;
+	odom_current_.twist.twist.linear.x = bv.x();
+	odom_current_.twist.twist.linear.y = bv.y();
+	odom_current_.twist.twist.linear.z = bv.z();
 
-	pub_pose_.publish(pose_current_);
-	pub_twist_.publish(twist_current_);
+	geometry_msgs::PoseStamped msg_out_pose;
+	msg_out_pose.header = odom_current_.header;
+	msg_out_pose.pose = odom_current_.pose.pose;
+
+	pub_pose_.publish(msg_out_pose);
+	pub_odom_.publish(odom_current_);
+}
+
+void UAVUSREmulator::callback_state(const ros::TimerEvent& e) {
+	mavros_msgs::State msg_out_state;
+	sensor_msgs::BatteryState msg_out_battery;
+
+	msg_out_state.header.stamp = e.current_real;
+	msg_out_state.header.frame_id = param_frame_id_;
+	msg_out_state.connected = true;
+	msg_out_state.armed = true;
+	msg_out_state.guided = true;
+	msg_out_state.mode = "OFFBOARD";
+	msg_out_state.system_status = 4;	//XXX: MAV_STATE_ACTIVE
+
+	//random voltages around the 4.0V mark
+	double v1 = 0.02*((rand() % 10) - 5) + 4;
+	double v2 = 0.02*((rand() % 10) - 5) + 4;
+	double v3 = 0.02*((rand() % 10) - 5) + 4;
+	msg_out_battery.header.stamp = e.current_real;
+	msg_out_battery.header.frame_id = param_frame_id_;
+	msg_out_battery.voltage = v1 + v2 + v3;
+	msg_out_battery.current = NAN;
+	msg_out_battery.capacity = NAN;
+	msg_out_battery.design_capacity = 4.2;
+	msg_out_battery.percentage = (msg_out_battery.voltage - 11.1) / (1.5);
+	msg_out_battery.power_supply_status = msg_out_battery.POWER_SUPPLY_STATUS_DISCHARGING;
+	msg_out_battery.power_supply_health = msg_out_battery.POWER_SUPPLY_HEALTH_GOOD;
+	msg_out_battery.power_supply_technology = msg_out_battery.POWER_SUPPLY_TECHNOLOGY_LIPO;
+	msg_out_battery.cell_voltage.push_back(v1);
+	msg_out_battery.cell_voltage.push_back(v2);
+	msg_out_battery.cell_voltage.push_back(v3);
+	msg_out_battery.location = "primary";
+	msg_out_battery.location = "DEADBEEF";
+
+	pub_state_.publish(msg_out_state);
+	pub_battery_.publish(msg_out_battery);
 }
 
 void UAVUSREmulator::callback_image(const ros::TimerEvent& e) {
@@ -232,8 +294,8 @@ void UAVUSREmulator::callback_image(const ros::TimerEvent& e) {
 	}
 }
 
-void UAVUSREmulator::callback_goal(const geometry_msgs::PoseStamped::ConstPtr& msg_in) {
-	pose_goal_ =*msg_in;
+void UAVUSREmulator::callback_goal(const mavros_msgs::PositionTarget::ConstPtr& msg_in) {
+	pt_goal_ =*msg_in;
 }
 
 void UAVUSREmulator::callback_drop_red(const std_msgs::Empty::ConstPtr& msg_in) {
@@ -243,7 +305,7 @@ void UAVUSREmulator::callback_drop_red(const std_msgs::Empty::ConstPtr& msg_in) 
 	hit.header.frame_id = param_frame_id_;
 	hit.header.stamp = ros::Time::now();
 
-	hit.pose = calcHitPoint(pose_current_.pose, twist_current_.twist);
+	hit.pose = calcHitPoint();
 
 	pub_drop_red_.publish(hit);
 }
@@ -255,32 +317,43 @@ void UAVUSREmulator::callback_drop_blue(const std_msgs::Empty::ConstPtr& msg_in)
 	hit.header.frame_id = param_frame_id_;
 	hit.header.stamp = ros::Time::now();
 
-	hit.pose = calcHitPoint(pose_current_.pose, twist_current_.twist);
+	hit.pose = calcHitPoint();
 
 	pub_drop_blue_.publish(hit);
 }
 
-geometry_msgs::Pose UAVUSREmulator::calcHitPoint(const geometry_msgs::Pose &p, const geometry_msgs::Twist &v) {
+geometry_msgs::Pose UAVUSREmulator::calcHitPoint() {
 	geometry_msgs::Pose hit;
+	Eigen::Vector3d p(odom_current_.pose.pose.position.x,
+					  odom_current_.pose.pose.position.y,
+					  odom_current_.pose.pose.position.z);
+	Eigen::Quaterniond q(odom_current_.pose.pose.orientation.w,
+						 odom_current_.pose.pose.orientation.x,
+						 odom_current_.pose.pose.orientation.y,
+						 odom_current_.pose.pose.orientation.z);
+	//Linear velocity
+	Eigen::Vector3d v = q.toRotationMatrix()*Eigen::Vector3d(odom_current_.twist.twist.linear.x,
+															 odom_current_.twist.twist.linear.y,
+															 odom_current_.twist.twist.linear.z);
 
 	//If the simulated UAV is above the ground
-	if(p.position.z > 0.0) {
+	if(p.z() > 0.0) {
 		//Fall time calculation
 		// z = vz*t - 0.5*g*t^2
 		double a = 0.5*GRAV;
-		double b = v.linear.z;
-		double c = -p.position.z;
+		double b = v.z();
+		double c = -p.z();
 		double t = (-b + std::sqrt(b*b - 4*a*c)) / (2*a);
 
 		//ROS_INFO("Drop: %0.4f, %0.4f, %0.4f", a, b, c);
 		//ROS_INFO("Hit Time: %0.4f", t);
 
-		hit.position.x = p.position.x + (v.linear.x * t);
-		hit.position.y = p.position.y + (v.linear.y * t);
+		hit.position.x = p.x() + (v.x() * t);
+		hit.position.y = p.y() + (v.y() * t);
 		hit.position.z = 0.0;
 	} else {
-		hit.position.x = p.position.x;
-		hit.position.y = p.position.y;
+		hit.position.x = p.x();
+		hit.position.y = p.y();
 		hit.position.z = 0.0;
 	}
 
@@ -350,36 +423,4 @@ void UAVUSREmulator::generateImageData(sensor_msgs::Image &img, int w, int h, in
 
 double UAVUSREmulator::clamp(double x, double min, double max) {
     return (x < min) ? min : ( (x > max) ? max : x );
-}
-
-Eigen::Matrix3d UAVUSREmulator::extract_yaw_component(const Eigen::Matrix3d &r) {
-	Eigen::Vector3d sp_x = Eigen::Vector3d::UnitX();
-	Eigen::Vector3d sp_y = Eigen::Vector3d::UnitY();
-
-	//As long as y isn't straight up
-	if(r.col(1) != Eigen::Vector3d::UnitZ()) {
-		//If we have ||roll|| > 90Deg
-		Eigen::Vector3d y_c;
-		if(r(2,2) > 0.0) {
-			y_c = r.col(1);
-		} else {
-			y_c = -r.col(1);
-		}
-
-		sp_x = y_c.cross(Eigen::Vector3d::UnitZ());
-		sp_y = Eigen::Vector3d::UnitZ().cross(sp_x);
-	} else { //Use X-axis for the edge-case
-		Eigen::Vector3d x_c = r.col(0);
-
-		sp_y = Eigen::Vector3d::UnitZ().cross(x_c);
-		sp_x = sp_y.cross(Eigen::Vector3d::UnitZ());
-	}
-
-	//Get the pure yaw rotation
-	Eigen::Matrix3d ry;
-	ry << sp_x.normalized(),
-		  sp_y.normalized(),
-		  Eigen::Vector3d::UnitZ();
-
-	return ry;
 }

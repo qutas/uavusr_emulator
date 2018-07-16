@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   image_transport
   std_msgs
+  mavros_msgs
   sensor_msgs
   roscpp
 )
