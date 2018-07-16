@@ -24,6 +24,12 @@
 		<param name="update_rate" value="50.0" />
 		<param name="do_feedback" value="true" />
 
+		<!-- Parameters relating to the waypoint tracking -->
+		<param name="contrail/fallback_to_pose" value="true" />
+		<param name="contrail/waypoint_hold_duration" value="2.0" />
+		<param name="contrail/waypoint_radius" value="0.1" />
+		<param name="contrail/waypoint_yaw_accuracy" value="0.1" />
+
 		<!-- Remap topic names to match what the uavusr_emulator expects -->
 		<remap from="guidance/command/triplet" to="reference/triplet"/>
 		<remap from="guidance/reference/contrail/path" to="path"/>
