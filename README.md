@@ -1,6 +1,13 @@
 # uavusr_emulator
 Small ROS publisher to output dummy data in the form of images, pose messages, and sensor readings
 
+## Installing Dependencies
+Before any steps can be made towards setting up the emulator, some packages must first be installed:
+
+```sh
+sudo apt install ros-kinetic-nav-msgs ros-kinetic-geometry-msgs ros-kinetic-image-transport ros-kinetic-std-msgs ros-kinetic-mavros-msgs ros-kinetic-sensor-msgs
+```
+
 ## Compiling
 ```sh
 cd ~/catkin_ws/src
@@ -64,7 +71,9 @@ Note, if you set a custom `UAVNAME`, you must also specify it with `uav_name:=UA
 
 ## Published Topics
 #### UAV Information
-- Current Position (geometry_msgs/PoseStamped): `/UAVNAME/uavusr/pose`
+- Autopilot State (mavros_msgs/State): `/UAVNAME/state`
+- Battery Reading (sensor_msgs/BatteryState): `/UAVNAME/battery`
+- Current Position (geometry_msgs/PoseStamped): `/UAVNAME/pose`
 - Current Odometery (nav_msgs/Odometry): `/UAVNAME/uavusr/odom`
 
 #### Flight Area
