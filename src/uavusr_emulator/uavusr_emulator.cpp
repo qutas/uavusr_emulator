@@ -186,6 +186,8 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 														pt_goal_.position.y - odom_current_.pose.pose.position.y,
 														pt_goal_.position.z - odom_current_.pose.pose.position.z);
 
+	vel += Eigen::Vector3d(pt_goal_.velocity.x, pt_goal_.velocity.y, pt_goal_.velocity.z);
+
 	double vscale  = vel.norm() / param_vel_max_;
 	if(vscale > 1.0) {
 		//Going to move too fast, rescale to slow down
