@@ -43,14 +43,7 @@ Additional settings (such as position tracking speed and update rates) can be ch
 #### Waypoint Example
 While the emulator itself does not come with an easy interface to control the current position with, the additional ROS package `contrail` can be used to perform all sorts of waypoint and tracking tasks. It is recommended that you refer to the `contrail` documentation for further reference.
 
-To download and compile `contail`:
-```sh
-cd ~/catkin_ws/src
-git clone https://github.com/qutas/contrail
-cd ~/catkin_ws
-catkin_make
-source ~/catkin_ws/devel/setup.bash
-```
+To download and compile `contail` [follow the instructions on the README](https://github.com/qutas/contrail/blob/master/contrail/README.md#installation).
 
 Some examples waypoints have been provided:
 - `uavusr_emulator/paths/home.yaml`: a simple hover goal
