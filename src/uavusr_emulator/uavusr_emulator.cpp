@@ -7,6 +7,7 @@
 #include <sensor_msgs/BatteryState.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Odometry.h>
 #include <mavros_msgs/State.h>
@@ -220,8 +221,17 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 	msg_out_pose.header = odom_current_.header;
 	msg_out_pose.pose = odom_current_.pose.pose;
 
+	geometry_msgs::TransformStamped msg_out_tf;
+	msg_out_tf.header = odom_current_.header;
+	msg_out_tf.child_frame_id = param_model_id_;
+	msg_out_tf.transform.translation.x = odom_current_.pose.pose.position.x;
+	msg_out_tf.transform.translation.y = odom_current_.pose.pose.position.y;
+	msg_out_tf.transform.translation.z = odom_current_.pose.pose.position.z;
+	msg_out_tf.transform.rotation = odom_current_.pose.pose.orientation;
+
 	pub_pose_.publish(msg_out_pose);
 	pub_odom_.publish(odom_current_);
+	tfbr_.sendTransform(msg_out_tf);
 }
 
 void UAVUSREmulator::callback_state(const ros::TimerEvent& e) {

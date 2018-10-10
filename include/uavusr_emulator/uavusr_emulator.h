@@ -9,6 +9,7 @@
 #include <mavros_msgs/PositionTarget.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <image_transport/image_transport.h>
+#include <tf2_ros/transform_broadcaster.h>
 
 #include <eigen3/Eigen/Dense>
 #include <string>
@@ -53,6 +54,7 @@ class UAVUSREmulator {
 		sensor_msgs::Image img_out_g_;
 		sensor_msgs::Image img_out_b_;
 
+		tf2_ros::TransformBroadcaster tfbr_;
 
 	public:
 		UAVUSREmulator( void );
