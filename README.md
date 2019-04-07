@@ -55,6 +55,13 @@ roslaunch uavusr_emulator guidance.launch wp_name:=PATHNAME
 
 Note, if you set a custom `UAVNAME`, you must also specify it with `uav_name:=UAVNAME` when running the waypoint guidance.
 
+## Tuning the Simulation
+Two files can be used to test the performance of tuning parameters:
+- `uavusr_emulator/launch/emulator.launch`:
+	- `model_mass`: Sets the weight of the model
+	- `single_motor_thrust`: Sets the thrust (N) that a single motor can generate (quadrotor X4)
+- `uavusr_emulator/config/mavel_params.yaml`: Refer to the [mavel documentation](https://github.com/qutas/mavel) for more details.
+
 ## Subscribed Topics
 - Deploy Red Payload (std_msgs/Empty): `/UAVNAME/drop/red`
 - Deploy Blue Payload (std_msgs/Empty): `/UAVNAME/drop/blue`
