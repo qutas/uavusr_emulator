@@ -2,16 +2,28 @@
 <launch>
 	<arg name="uav_name" default="emulated_uav"/>
 
-	<node pkg="uavusr_emulator" type="uavusr_emulator_node" name="emulator" clear_params="true"
-	ns="$(arg uav_name)" output="screen">
-		<!-- Operational Parameters -->
-		<param name="frame_id" value="map" type="str"/>
-		<param name="model_id" value="uavusr" type="str"/>
-		<param name="update_rate_pose" value="50.0" type="double"/>
-		<param name="update_rate_image" value="1.0" type="double"/>
+	<group ns="$(arg uav_name)">
+		<node pkg="uavusr_emulator" type="uavusr_emulator_node" name="emulator"
+		clear_params="true" output="screen">
+			<!-- Operational Parameters -->
+			<param name="frame_id" value="map" type="str"/>
+			<param name="model_id" value="$(arg uav_name)" type="str"/>
+			<param name="update_rate_pose" value="50.0" type="double"/>
+			<param name="update_rate_image" value="1.0" type="double"/>
 
-		<!-- Position Control Parameters -->
-		<param name="pos_gain" value="1.0" type="double"/>
-		<param name="vel_max" value="1.0" type="double"/>
-	</node>
+			<!-- Mass of the UAV (kg) -->
+			<param name="model_mass" value="1.0" type="double"/>
+			<!-- Thurst produced by a single motor (N) -->
+			<param name="single_motor_thrust" value="5.0" type="double"/>
+		</node>
+
+		<node pkg="mavel" type="mavel_node" name="mavel"
+		clear_params="true" output="screen">
+			<rosparam command="load" file="$(find uavusr_emulator)/config/mavel_params.yaml"/>
+
+			<remap from="~command/attitude" to="reference/attitude"/>
+			<remap from="~state/odometry" to="odom"/>
+			<remap from="~state/mav_state" to="state"/>
+		</node>
+	</group>
 </launch>

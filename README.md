@@ -41,14 +41,12 @@ roslaunch uavusr_emulator emulator.launch uav_name:=UAVNAME
 Additional settings (such as position tracking speed and update rates) can be changed by editing the launch file itself (located in `uavusr_emulator/launch/emulator.launch`):
 
 #### Waypoint Example
-While the emulator itself does not come with an easy interface to control the current position with, the additional ROS package `contrail` can be used to perform all sorts of waypoint and tracking tasks. It is recommended that you refer to the `contrail` documentation for further reference.
-
-To download and compile `contail` [follow the instructions on the README](https://github.com/qutas/contrail/blob/master/contrail/README.md#installation).
+While the emulator itself does not come with an easy interface to control the current position with, the additional ROS package `contrail` can be used to perform all sorts of waypoint and tracking tasks. It is recommended that you refer to the `contrail` [documentation for further reference](https://github.com/qutas/contrail).
 
 Some examples waypoints have been provided:
-- `uavusr_emulator/paths/home.yaml`: a simple hover goal
-- `uavusr_emulator/paths/land.yaml`: a simple landing goal
-- `uavusr_emulator/paths/square.yaml`: a complex square path with changing heading
+- `uavusr_emulator/movements/home.yaml`: a simple hover goal
+- `uavusr_emulator/movements/land.yaml`: a simple landing goal
+- `uavusr_emulator/movements/square.yaml`: a complex square path with changing heading
 
 To run the waypoint tracking (replace `PATHNAME` with the desired waypoints, e.g. `home`):
 ```sh
@@ -58,7 +56,6 @@ roslaunch uavusr_emulator guidance.launch wp_name:=PATHNAME
 Note, if you set a custom `UAVNAME`, you must also specify it with `uav_name:=UAVNAME` when running the waypoint guidance.
 
 ## Subscribed Topics
-- Position Setpoint (geometry_msgs/PoseStamped): `/UAVNAME/reference/triplet`
 - Deploy Red Payload (std_msgs/Empty): `/UAVNAME/drop/red`
 - Deploy Blue Payload (std_msgs/Empty): `/UAVNAME/drop/blue`
 

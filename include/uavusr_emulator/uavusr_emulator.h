@@ -6,7 +6,7 @@
 #include <sensor_msgs/Image.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Odometry.h>
-#include <mavros_msgs/PositionTarget.h>
+#include <mavros_msgs/AttitudeTarget.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <image_transport/image_transport.h>
 #include <tf2_ros/transform_broadcaster.h>
@@ -29,7 +29,8 @@ class UAVUSREmulator {
 		ros::Publisher pub_drop_blue_;
 		image_transport::Publisher pub_image_;
 
-		ros::Subscriber sub_goal_;
+		//ros::Subscriber sub_goal_;
+		ros::Subscriber sub_attitude_;
 		ros::Subscriber sub_drop_red_;
 		ros::Subscriber sub_drop_blue_;
 
@@ -41,11 +42,18 @@ class UAVUSREmulator {
 		std::string param_model_id_;
 		double param_rate_pose_;
 		double param_rate_image_;
-		double param_vel_max_;
-		double param_pos_p_;
+		//double param_vel_max_;
+		//double param_pos_p_;
+		double param_mass_;
+		double param_thrust_single_;
+		//double param_att_p_;
 
-		mavros_msgs::PositionTarget pt_goal_;
-		nav_msgs::Odometry odom_current_;
+		mavros_msgs::AttitudeTarget attitude_goal_;
+
+		//State Variables
+		Eigen::Vector3d p_;
+		Eigen::Vector3d v_;
+		Eigen::Quaterniond q_;
 
 		image_transport::ImageTransport it_;
 		int img_seq_;
@@ -66,7 +74,7 @@ class UAVUSREmulator {
 		void callback_state(const ros::TimerEvent& e);
 		void callback_image(const ros::TimerEvent& e);
 
-		void callback_goal(const mavros_msgs::PositionTarget::ConstPtr& msg_in);
+		void callback_attitude(const mavros_msgs::AttitudeTarget::ConstPtr& msg_in);
 		void callback_drop_red(const std_msgs::Empty::ConstPtr& msg_in);
 		void callback_drop_blue(const std_msgs::Empty::ConstPtr& msg_in);
 

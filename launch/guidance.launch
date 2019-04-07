@@ -3,36 +3,13 @@
 	<arg name="uav_name" default="emulated_uav"/>
 	<arg name="wp_name" default="home"/>
 
-	<!-- Load the waypoints from file, and send them as a ROS topic -->
-	<node pkg="contrail" type="load_waypoints" name="load_waypoints" clear_params="true"
-	ns="$(arg uav_name)" output="screen">
-		<param name="frame_id" value="map" />
-		<rosparam command="load" file="$(find uavusr_emulator)/waypoints/$(arg wp_name).yaml"/>
-	</node>
+	<group ns="$(arg uav_name)">
+		<arg name="move" default="home"/>
 
-	<!-- Convert the simple waypoint topic to a standard nav_msgs/Path topic -->
-	<node pkg="contrail" type="converter_waypoints_path" name="wp_converter" clear_params="true"
-	ns="$(arg uav_name)" output="screen">
-		<!-- Remap topic names to match what the uavusr_emulator expects -->
-		<remap from="~waypoints" to="waypoints" />
-		<remap from="~path" to="path" />
-	</node>
+		<node pkg="contrail" type="dispatcher" name="waypoint_dispatcher" clear_params="true" output="screen">
+			<param name="action_topic" value="/emulated_uav/mavel/contrail" />
 
-	<!-- Run the actual path guidance node -->
-	<node pkg="contrail" type="contrail_guidance_node" name="guidance" clear_params="true"
-	ns="$(arg uav_name)" output="screen">
-		<param name="update_rate" value="50.0" />
-		<param name="do_feedback" value="true" />
-
-		<!-- Parameters relating to the waypoint tracking -->
-		<param name="contrail/fallback_to_pose" value="true" />
-		<param name="contrail/waypoint_hold_duration" value="2.0" />
-		<param name="contrail/waypoint_radius" value="0.1" />
-		<param name="contrail/waypoint_yaw_accuracy" value="0.1" />
-
-		<!-- Remap topic names to match what the uavusr_emulator expects -->
-		<remap from="~command/triplet" to="reference/triplet"/>
-		<remap from="~reference/contrail/path" to="path"/>
-		<remap from="~state/odom" to="odom" />
-	</node>
+			<rosparam command="load" file="$(find uavusr_emulator)/movements/$(arg wp_name).yaml"/>
+		</node>
+	</group>
 </launch>

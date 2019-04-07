@@ -1,0 +1,13 @@
+waypoints:
+  mode: "continuous"
+  duration: 1.0
+  wp0:
+    x: 0.0
+    y: 0.0
+    z: 1.0
+    yaw: 1.571
+  wp1:
+    x: 0.0
+    y: 0.0
+    z: 1.0
+    yaw: 1.571
