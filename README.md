@@ -78,6 +78,6 @@ Note, if you set a custom `UAVNAME`, you must also specify it with `uav_name:=UA
 - Blue Deployment Position (geometry_msgs/PoseStamped): `/UAVNAME/drop/blue/pose`
 
 #### Imagery
-- Raw Image (sensor_msgs/Image): `/UAVNAME/camera/image
+- Raw Image (sensor_msgs/Image): `/UAVNAME/camera/image`
 - Compressed Image (sensor_msgs/CompressedImage): `/UAVNAME/image/compressed`
 
