@@ -231,11 +231,11 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 	*/
 
 	//Accept desired vector as current vector
-	Eigen::Quaterniond q_(attitude_goal_.orientation.w,
-						  attitude_goal_.orientation.x,
-						  attitude_goal_.orientation.y,
-						  attitude_goal_.orientation.z);
-	q_.normalize();
+	Eigen::Quaterniond q_sp(attitude_goal_.orientation.w,
+							attitude_goal_.orientation.x,
+							attitude_goal_.orientation.y,
+							attitude_goal_.orientation.z);
+	q_sp.normalize();
 
 	//double turn_rate = 0.8/param_rate_pose_;
 	//Eigen::Quaterniond q_c = Eigen::Quaterniond(Eigen::AngleAxisd(pt_goal_.yaw, Eigen::Vector3d::UnitZ()));
@@ -245,6 +245,31 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 	//											odom_current_.pose.pose.orientation.z).normalized().slerp(turn_rate, q_c);
 
 	Eigen::Matrix3d R(q_);
+	Eigen::Matrix3d R_sp(q_sp);
+
+	double K_P_YAW = 0.2;
+
+    Eigen::Vector3d xb = R.block<3,1>(0,0);
+    Eigen::Vector3d xb_sp = R_sp.block<3,1>(0,0);
+	double yaw = atan2(xb(1), xb(0));
+	double yaw_sp = atan2(xb_sp(1), xb_sp(0));
+
+	//XXX: Handle RP-Yd
+	double ye = K_P_YAW*(yaw_sp - yaw);
+	if(attitude_goal_.type_mask & attitude_goal_.IGNORE_YAW_RATE) {
+		yaw += ye*dt;
+	} else {
+		yaw += attitude_goal_.body_rate.z*dt;
+	}
+
+	Eigen::Vector3d yaw_v( -sin( yaw ), cos( yaw ), 0.0 );
+    Eigen::Vector3d zb_sp = R_sp.block<3,1>(0,2);
+
+	R.block<3,1>(0,2) = zb_sp;
+	R.block<3,1>(0,0) = yaw_v.cross( zb_sp ).normalized();
+	R.block<3,1>(0,1) = R.block<3,1>(0,2).cross( R.block<3,1>(0,0) ).normalized();
+
+	q_ = Eigen::Quaterniond(R).normalized();
 
 	//Calculate acceleration vector
 	//Using quadcopter model, so body acceleration is: ba=4F/m
