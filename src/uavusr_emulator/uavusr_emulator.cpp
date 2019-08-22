@@ -33,6 +33,7 @@ UAVUSREmulator::UAVUSREmulator() :
 	param_rate_image_(1.0),
 	param_mass_(1.0),
 	param_thrust_single_(5.0),
+	param_ye_kp_(0.8),
 	it_(nh_),
 	img_seq_(0) {
 
@@ -45,6 +46,7 @@ UAVUSREmulator::UAVUSREmulator() :
 	nhp_.param("update_rate_image", param_rate_image_, param_rate_image_);
 	nhp_.param("model_mass", param_mass_, param_mass_);
 	nhp_.param("single_motor_thrust", param_thrust_single_, param_thrust_single_);
+	nhp_.param("yaw_tracking_gain", param_ye_kp_, param_ye_kp_);
 
 	//Publishers
 	pub_pose_ = nh_.advertise<geometry_msgs::PoseStamped>( "pose", 100 );
@@ -194,6 +196,15 @@ UAVUSREmulator::UAVUSREmulator() :
 UAVUSREmulator::~UAVUSREmulator() {
 }
 
+double UAVUSREmulator::yaw_error_shortest_path(const double y_sp, const double y) {
+	double ye = y_sp - y;
+
+	while(fabs(ye) > M_PI)
+		ye += (ye > 0.0) ? -2*M_PI : 2*M_PI;
+
+	return ye;
+}
+
 void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 	double dt = 1.0/param_rate_pose_;
 
@@ -247,15 +258,13 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 	Eigen::Matrix3d R(q_);
 	Eigen::Matrix3d R_sp(q_sp);
 
-	double K_P_YAW = 0.2;
-
     Eigen::Vector3d xb = R.block<3,1>(0,0);
     Eigen::Vector3d xb_sp = R_sp.block<3,1>(0,0);
 	double yaw = atan2(xb(1), xb(0));
 	double yaw_sp = atan2(xb_sp(1), xb_sp(0));
 
 	//XXX: Handle RP-Yd
-	double ye = K_P_YAW*(yaw_sp - yaw);
+	double ye = param_ye_kp_*yaw_error_shortest_path(yaw_sp,yaw);
 	if(attitude_goal_.type_mask & attitude_goal_.IGNORE_YAW_RATE) {
 		yaw += ye*dt;
 	} else {

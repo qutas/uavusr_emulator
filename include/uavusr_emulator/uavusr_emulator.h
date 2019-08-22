@@ -46,6 +46,7 @@ class UAVUSREmulator {
 		//double param_pos_p_;
 		double param_mass_;
 		double param_thrust_single_;
+		double param_ye_kp_;
 		//double param_att_p_;
 
 		mavros_msgs::AttitudeTarget attitude_goal_;
@@ -77,6 +78,8 @@ class UAVUSREmulator {
 		void callback_attitude(const mavros_msgs::AttitudeTarget::ConstPtr& msg_in);
 		void callback_drop_red(const std_msgs::Empty::ConstPtr& msg_in);
 		void callback_drop_blue(const std_msgs::Empty::ConstPtr& msg_in);
+
+		double yaw_error_shortest_path(const double y_sp, const double y);
 
 		geometry_msgs::Pose calcHitPoint();
 		void generateImageData(sensor_msgs::Image &img, int w, int h, int r, int g, int b);
