@@ -24,6 +24,8 @@
 
 #define GRAV 9.80665
 
+namespace uavusr_emulator {
+
 UAVUSREmulator::UAVUSREmulator() :
 	nh_(),
 	nhp_("~"),
@@ -31,22 +33,22 @@ UAVUSREmulator::UAVUSREmulator() :
 	param_model_id_("uav"),
 	param_rate_pose_(50.0),
 	param_rate_image_(1.0),
-	param_mass_(1.0),
-	param_thrust_single_(5.0),
-	param_ye_kp_(0.8),
+	//param_mass_(1.0),
+	//param_thrust_single_(5.0),
+	//param_ye_kp_(0.8),
+	dyncfg_settings_(ros::NodeHandle(nhp_)),
 	it_(nh_),
 	img_seq_(0) {
 
 	srand(time(NULL));
+
+	dyncfg_settings_.setCallback(boost::bind(&UAVUSREmulator::callback_cfg_settings, this, _1, _2));
 
 	//Parameters
 	nhp_.param("frame_id", param_frame_id_, param_frame_id_);
 	nhp_.param("model_id", param_model_id_, param_model_id_);
 	nhp_.param("update_rate_pose", param_rate_pose_, param_rate_pose_);
 	nhp_.param("update_rate_image", param_rate_image_, param_rate_image_);
-	nhp_.param("model_mass", param_mass_, param_mass_);
-	nhp_.param("single_motor_thrust", param_thrust_single_, param_thrust_single_);
-	nhp_.param("yaw_tracking_gain", param_ye_kp_, param_ye_kp_);
 
 	//Publishers
 	pub_pose_ = nh_.advertise<geometry_msgs::PoseStamped>( "pose", 100 );
@@ -76,59 +78,8 @@ UAVUSREmulator::UAVUSREmulator() :
 	generateImageData(img_out_b_, 640, 480, 0x00, 0x00, 0xFF);
 
 	//Occupancy Grid
-	std::srand( std::time(0) );
-	ros::Time grid_stamp = ros::Time::now();
-	nav_msgs::OccupancyGrid grid_test_out;
-	nav_msgs::OccupancyGrid grid_rand_out;
-	grid_test_out.header.frame_id = param_frame_id_;
-	grid_test_out.header.stamp = grid_stamp;
-	grid_test_out.info.map_load_time = grid_stamp;
-	grid_test_out.info.resolution = 0.1;
-	grid_test_out.info.width = 50;
-	grid_test_out.info.height = 50;
-	grid_test_out.info.origin.position.x = -2.5;
-	grid_test_out.info.origin.position.y = -2.5;
-	grid_test_out.info.origin.orientation.w = 1.0;
-	grid_rand_out = grid_test_out;
-
-	int g_obs_x = 20;
-	int g_obs_y = 30;
-	int g_obs_s = 5;
-
-	for(int gv_x = 0; gv_x < grid_test_out.info.width; gv_x++) {
-		for(int gv_y = 0; gv_y < grid_test_out.info.height; gv_y++) {
-			//Generate boundary and obstacle
-			int8_t g_val = 0;
-
-			if( (gv_x == 0) ||
-				(gv_y == 0) ||
-				(gv_x == grid_test_out.info.width - 1) ||
-				(gv_y == grid_test_out.info.height - 1) ) {
-				g_val = 100;
-			}
-
-			if( ( ( gv_x >= g_obs_x - g_obs_s) &&
-				  ( gv_x <= g_obs_x + g_obs_s) ) &&
-				( ( gv_y >= g_obs_y - g_obs_s) &&
-				  ( gv_y <= g_obs_y + g_obs_s) ) ) {
-				g_val = 100;
-			}
-
-			grid_test_out.data.push_back(g_val);
-
-			//Generate random data for the random map
-			int8_t rand_val = 100;
-
-			if( std::rand() % 8 ) {
-				rand_val = 0;
-			}
-
-			grid_rand_out.data.push_back(rand_val);
-		}
-	}
-
-	pub_grid_rand_.publish(grid_rand_out);
-	pub_grid_real_.publish(grid_test_out);
+	pub_grid_rand_.publish(generateGridData(true));
+	pub_grid_real_.publish(generateGridData(false));
 
 	//Pose
 	/*
@@ -196,6 +147,16 @@ UAVUSREmulator::UAVUSREmulator() :
 UAVUSREmulator::~UAVUSREmulator() {
 }
 
+void UAVUSREmulator::callback_cfg_settings( uavusr_emulator::EmulatorParamsConfig &config, uint32_t level ) {
+	param_system_armed_ = config.system_armed;
+    param_system_mode_ = uavusr_emulator::mode_names.at(config.mode);
+    param_ye_kp_ = config.psi_delay;
+
+    param_mass_ = config.mass;
+    param_thrust_single_ = config.thrust_single;
+    param_num_motors_ = uavusr_emulator::airframe_num_motors.at(config.airframe);
+}
+
 double UAVUSREmulator::yaw_error_shortest_path(const double y_sp, const double y) {
 	double ye = y_sp - y;
 
@@ -207,6 +168,22 @@ double UAVUSREmulator::yaw_error_shortest_path(const double y_sp, const double y
 
 void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 	double dt = 1.0/param_rate_pose_;
+
+	double thrust = 0.0;
+	Eigen::Quaterniond q_sp(1.0, 0.0, 0.0, 0.0);
+
+	if( param_system_armed_ && (attitude_goal_.header.stamp > ros::Time(0)) ) {
+		//Accept desired vector as current vector
+		q_sp = Eigen::Quaterniond(attitude_goal_.orientation.w,
+								  attitude_goal_.orientation.x,
+								  attitude_goal_.orientation.y,
+								  attitude_goal_.orientation.z);
+		q_sp.normalize();
+
+		thrust = attitude_goal_.thrust;
+	} else {
+		attitude_goal_.header.stamp = ros::Time(0);
+	}
 
 	/*
 	double vx = -clamp(, -param_vel_max_, param_vel_max_);
@@ -241,12 +218,6 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 	odom_current_.pose.pose.position.z += vel.z()*dt;
 	*/
 
-	//Accept desired vector as current vector
-	Eigen::Quaterniond q_sp(attitude_goal_.orientation.w,
-							attitude_goal_.orientation.x,
-							attitude_goal_.orientation.y,
-							attitude_goal_.orientation.z);
-	q_sp.normalize();
 
 	//double turn_rate = 0.8/param_rate_pose_;
 	//Eigen::Quaterniond q_c = Eigen::Quaterniond(Eigen::AngleAxisd(pt_goal_.yaw, Eigen::Vector3d::UnitZ()));
@@ -282,7 +253,10 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 
 	//Calculate acceleration vector
 	//Using quadcopter model, so body acceleration is: ba=4F/m
-	double z_accel = ( attitude_goal_.thrust * 4 * param_thrust_single_ ) / param_mass_;
+	double z_accel = 0.0;
+
+	z_accel = ( thrust * param_num_motors_ * param_thrust_single_ ) / param_mass_;
+
 	Eigen::Vector3d ba(0.0, 0.0, z_accel );
 	Eigen::Vector3d a = R*ba + Eigen::Vector3d(0.0, 0.0, -9.80665);	//world acceleration vector + gravity
 
@@ -347,9 +321,9 @@ void UAVUSREmulator::callback_state(const ros::TimerEvent& e) {
 	msg_out_state.header.stamp = e.current_real;
 	msg_out_state.header.frame_id = param_frame_id_;
 	msg_out_state.connected = true;
-	msg_out_state.armed = true;
+	msg_out_state.armed = param_system_armed_;
 	msg_out_state.guided = true;
-	msg_out_state.mode = "OFFBOARD";
+	msg_out_state.mode = param_system_mode_;
 	msg_out_state.system_status = 4;	//XXX: MAV_STATE_ACTIVE
 
 	//random voltages around the 4.0V mark
@@ -544,6 +518,60 @@ void UAVUSREmulator::generateImageData(sensor_msgs::Image &img, int w, int h, in
 	}
 }
 
+nav_msgs::OccupancyGrid UAVUSREmulator::generateGridData( bool gen_random ) {
+    nav_msgs::OccupancyGrid msg_out;
+    ros::Time stamp = ros::Time::now();
+
+	msg_out.header.frame_id = param_frame_id_;
+	msg_out.header.stamp = stamp;
+	msg_out.info.map_load_time = stamp;
+	msg_out.info.resolution = 0.1;
+	msg_out.info.width = 50;
+	msg_out.info.height = 50;
+	msg_out.info.origin.position.x = -2.5;
+	msg_out.info.origin.position.y = -2.5;
+	msg_out.info.origin.orientation.w = 1.0;
+
+	int g_obs_x = 20;
+	int g_obs_y = 30;
+	int g_obs_s = 4;
+
+	std::srand( std::time(0) );
+
+	for(int gv_x = 0; gv_x < msg_out.info.width; gv_x++) {
+		for(int gv_y = 0; gv_y < msg_out.info.height; gv_y++) {
+			//Generate boundary and obstacle
+			int8_t g_val = 0;
+
+			if( (gv_x == 0) ||
+				(gv_y == 0) ||
+				(gv_x == msg_out.info.width - 1) ||
+				(gv_y == msg_out.info.height - 1) ) {
+				g_val = 100;
+			}
+
+            if (gen_random) {
+                if(!( std::rand() % 8 )) {
+                    g_val = 100;
+                }
+            } else {
+                if( ( ( gv_x >= g_obs_x - g_obs_s) &&
+                      ( gv_x <= g_obs_x + g_obs_s) ) &&
+                    ( ( gv_y >= g_obs_y - g_obs_s) &&
+                      ( gv_y <= g_obs_y + g_obs_s) ) ) {
+                    g_val = 100;
+                }
+            }
+
+			msg_out.data.push_back(g_val);
+        }
+    }
+
+    return msg_out;
+}
+
 double UAVUSREmulator::clamp(double x, double min, double max) {
     return (x < min) ? min : ( (x > max) ? max : x );
 }
+
+};

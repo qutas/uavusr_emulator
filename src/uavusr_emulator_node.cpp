@@ -3,7 +3,7 @@
 
 int main(int argc, char** argv) {
 	ros::init(argc, argv, "uavusr_emulator");
-	UAVUSREmulator uavusr;
+	uavusr_emulator::UAVUSREmulator uavusr;
 
 	ros::spin();
 
