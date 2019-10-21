@@ -180,7 +180,7 @@ void UAVUSREmulator::callback_pose(const ros::TimerEvent& e) {
 								  attitude_goal_.orientation.z);
 		q_sp.normalize();
 
-		thrust = attitude_goal_.thrust;
+		thrust = clamp(attitude_goal_.thrust, 0.0, 1.0);
 	} else {
 		attitude_goal_.header.stamp = ros::Time(0);
 	}
