@@ -71,7 +71,7 @@ Two files can be used to test the performance of tuning parameters:
 - Autopilot State (mavros_msgs/State): `/UAVNAME/state`
 - Battery Reading (sensor_msgs/BatteryState): `/UAVNAME/battery`
 - Current Position (geometry_msgs/PoseStamped): `/UAVNAME/pose`
-- Current Odometery (nav_msgs/Odometry): `/UAVNAME/uavusr/odom`
+- Current Odometery (nav_msgs/Odometry): `/UAVNAME/odom`
 
 #### Flight Area
 - Realistic Map (nav_msgs/OccupancyGrid): `/grid/real`
