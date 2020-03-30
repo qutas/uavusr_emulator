@@ -82,6 +82,6 @@ Two files can be used to test the performance of tuning parameters:
 - Blue Deployment Position (geometry_msgs/PoseStamped): `/UAVNAME/drop/blue/pose`
 
 #### Imagery
-- Raw Image (sensor_msgs/Image): `/UAVNAME/camera/image`
+- Raw Image (sensor_msgs/Image): `/UAVNAME/image`
 - Compressed Image (sensor_msgs/CompressedImage): `/UAVNAME/image/compressed`
 
