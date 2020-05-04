@@ -6,7 +6,7 @@
 	<group ns="$(arg uav_name)">
 		<arg name="move" default="home"/>
 
-		<node pkg="contrail" type="dispatcher" name="waypoint_dispatcher" clear_params="true" output="screen">
+		<node pkg="contrail_manager" type="dispatcher" name="waypoint_dispatcher" clear_params="true" output="screen">
 			<param name="action_topic" value="/emulated_uav/mavel/contrail" />
 
 			<rosparam command="load" file="$(find uavusr_emulator)/movements/$(arg wp_name).yaml"/>
